@@ -7,8 +7,9 @@
    - [Simple](#deployments)
    - [Escalado](#escalado)
  - [Services](#services)
-   - [Escalado](#escalado)
-   - [Update](#update)
+   - [Clusterip](#escalado)
+   - [Nodeport](#update)
+   - [LoadBalancer](#loadbalancer)
 
 
 ## Primeros comandos
@@ -269,26 +270,16 @@ kubectl port-forward deployment/name 8080
 kubectl port-forward service/name 8080
 ```
 
-[Desplegar nginx](./deployments/nginx.deployment.yml)
-
 ``` powershell
 kubectl apply -f ./deployments/nginx.deployment.yml
 ```
-
 
 ``` powershell
 kubectl get all
 ```
 
-``` powershell
-kubectl port-forward pod/my-nginx-5bb9b897c8-h4ggq 8080:80
-```
+#### clusterIP
 
-``` powershell
-kubectl port-forward deployment/my-nginx 8080:80
-```
-
-### clusterIP
  ``` powershell
  k exec pod/my-nginx-5bb9b897c8-mrgds -- curl -s http://10.1.0.106 
  ```
@@ -298,95 +289,213 @@ kubectl port-forward deployment/my-nginx 8080:80
  k exec pod/my-nginx-5bb9b897c8-mrgds -- curl -s http://10.1.0.106 
  ```
 
+``` yml
+apiVersion: v1
+kind: Service
+
+metadata:
+  type: ClusterIP
+  name: nginx-clusterip ## DNS name (cluster internal)
+  labels:
+    app: nginx
+spect:
+  selector:
+    app: nginx
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 80
+```    
+
  ``` powershell
  ## clusterip DNS
  k exec pod/my-nginx-5bb9b897c8-mrgds -- curl -s http://nginx-clusterip:8080
  ```
 
-### NodePort
+#### NodePort
 
-``` powershell
- kubectl apply -f .\services\nginx.nodeport.service.yml
- ```
+``` yml
+apiVersion: v1
+kind: Service
+metadata:
+ name: nginx-nodeport
+spec:
+  type: NodePort
+  selector:
+    app: my-nginx
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 31000
+```
 
+#### Loadbalancer
 
-### Loadbalancer
-``` powershell
- kubectl apply -f .\services\nginx.loadbalancer.service.yml
- ```
+``` yml
+apiVersion: v1
+kind: Service
+metadata:
+ name: nginx-loadbalancer
+spec:
+ type: LoadBalancer
+ selector:
+    app: my-nginx
+ ports:
+  - name: "80"
+    port: 8080
+    targetPort: 80
+    
+  # - name: "443"
+  #   port: 443
+  #   targetPort: 443
+  ```
 
 
 ## Storage
-Si un contenedor, Pod o Nodo deja de funcionar en ocasiones necesitamos tener datos que persistan y se puedan recuperar cuando el sistema se estabilice (o compartir datos al escalar).
-Ese es el objetivo del storage, tener información en lugares que se pueda compatir.
+
+#### persisten volume
+``` yml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: task-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data"
+    type: DirectoryOrCreate #por defecto es Directory, en caso del directorio no existir daría error
+```
+
+#### Persistent volume claim
+
+``` yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: task-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+``` yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+  labels:
+    app: my-nginx #importante para relacionar objetos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-nginx #objetos a los que afecta
+  template:
+    metadata:
+      labels:
+        app: my-nginx #etiqueta custom para asociar este objeto
+    spec: # definición de los Pods
+      containers:
+      - name: my-nginx
+        image: nginx:alpine
+        ports:
+        resources: # acá pueden ir cosas como límites de CPU y memoria
+        volumeMounts:
+        - name: vol1
+          mountPath: /usr/share/nginx/html        
+      volumes:
+      - name: vol1
+        persistentVolumeClaim:
+          claimName: task-pv-claim
+```
+
+
 
 ### Tipos de storage
- - Volumes
- - PersistentVolumes
- - PersistentVolumeClaims
- - StorageClasses
-
- > Los volúmenes pueden ser utilizados para almacenar datos y estados de Pods y contenedores, y acceder después de que un Pod es re-creado
-
-
-Los Pods viven y mueren, entonces su file systema es efímero
-Se pueden utilizar volúmenes para almacenar datos / estado para utilizarlos en Pods
-Un Pod puede tener múltiples volumnes atachados
-Los contenedores utilizando **mountPath** para acceder a un volumen
-
-> Kubernetes soporta
-> - Volumes
-> - PersistentVolumes
-> - PersistentVolumeClaims
-> - StorageClasses
 
 ### Volúmenes
 
 Son similares a los volúmenes de Docker pero con más opciones.
 
- #### Tipos de volúmenes
-  - emptyDir: Tiene el ciclo de vida del Pod, útil para compartir información entre los contenedores de un Pod
-  - hostPath: El Pod monta el volumen sobre el file system del Nodo
-  - nfs (network file system): Un volumen en algún sitio de la red que no está relacionado con el Nodo ni el cluster, tiene su propio ciclo de vida.
-  - configMap/secret: Tipos especiales que permiten al Pod acceder a recursos de Kubernetes
-  - persistentVolumeClaim: Permite abstraer al Pod del volument
-  - Could: Sistema de permistencia fuera de la Red
+## configmap
 
-  #### emptyDir
-  Solo vive y es visible para un Pod
 
-  [Ejemplo](/storage/nginx.emptydir.volume.yml)
+``` yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-configmap
+spec:
+  selector:
+    matchLabels:
+      app: nginx-configmap
+  template:
+    metadata:
+      labels:
+        app: nginx-configmap
+    spec:
+      containers:
+      - name: nginx-configmap
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        resources:
+        ports:
+        - containerPort: 9000
 
-``` powershell
-k apply -f ./storage/nginx.emptydir.volume.yml
-k port-forward my-nginx 8080:80
-k describe pod my-nginx
+        volumeMounts: # montamos el config map como un volumen para tenerlo accesible en un directorio del container
+          - name: app-config-vol
+            mountPath: /etc/config
+
+        env: # leemos cada environment variable de a una desde un config map creado
+        - name: MY_ENV1
+          valueFrom:
+            configMapKeyRef:
+              name: app-settings
+              key: MY_KEY1
+              optional: true
+
+        envFrom: # leemos todas las environment variables y las cargamos en el container
+        - configMapRef:
+            name: app-settings
+
+      volumes: # se crea un volumen a partir de un config map
+      - name: app-config-vol
+        configMap:
+          name: app-settings
 ```
 
-  #### hostPath
-  Se mapea el Pods
-  Puede ser de diferentes tipos:
-   - DirectoryOrCreate
-   - Directory
-   - FileOrCreate
-   - File
-   - Socket
-   - CharDevice
-   - BlockDevice
+#### secrets
 
-``` powershell
-k apply -f ./storage/nginx.hostPath.volume.yml
-k port-forward my-nginx 8080:80
-k describe pod my-nginx
+
+``` yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-env-pod
+spec:
+  containers:
+  - name: mycontainer
+    image: nginx
+    env:
+      - name: SECRET_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: db-passwords
+            key: db-username
+      - name: SECRET_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db-passwords
+            key: db-password
+  restartPolicy: Never
 ```
-
-#### PersistentVolumens & PersistentVolumeClaims
-
-Es un volumen que debe crear el administrador y depende del cluster
-No depende del ciclo de vida de ningún Pod sino del cluster
-
- - PersistentVolume: El volumen asociado al cluster, creado por un administrador (NFS, Could, etc.)
- - PersistentVolumeClaim: El objeto que asocia un Pod o Deployment con un PersistentVolume
-
- #### Storage classes
- 
