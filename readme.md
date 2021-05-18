@@ -1,11 +1,17 @@
 # Índice
  - [Primeros comandos](#primeros-comandos)
- - [Pods]
+ - [Pods](#pods)
    - [Creación por línea de comandos](#imperativo)
    - [Con YAML](#pods-con-yaml)
+ - [Deployments](#deployments)
+   - [Simple](#deployments)
+   - [Escalado](#escalado)
+ - [Services](#services)
+   - [Escalado](#escalado)
+   - [Update](#update)
 
 
-#### Primeros comandos
+## Primeros comandos
 ``` powershell
 ## set alias en powershell
 Set-Alias -name k -value kubectl
@@ -139,38 +145,116 @@ rm index.html
 
 
 ## Deployments
+
+``` yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+  labels:
+    app: my-nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-nginx
+  template:
+    metadata:
+      labels:
+        app: my-nginx
+    spec:
+      containers:
+      - name: my-nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
 ```
+
+``` powershell
 kubectl apply -f .\deployments\nginx.deployment.yml
 ```
 
-```
+``` powershell
 kubectl get all
 ```
-```
+
+``` powershell
 kubectl describe deployment my-nginx
 ```
 
-### Escalado
-
+``` powershell
+delete pod
 ```
+
+``` powershell
+kubectl get all
+```
+
+#### Escalado
+
+``` powershell
 kubectl scale -f .\deployments\nginx.deployment.yml --replicas=4
 ```
 
-```
-kubectl get deployment my-nginx -o yaml
-```
-
-```
+``` powershell
 kubectl get pods -w
 ```
 
-```
+``` powershell
 kubectl delete pod [podname]
 ```
 
-```
+``` powershell
 kubectl delete deployment my-nginx
 ```
+
+#### Update
+
+``` yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+  labels:
+    app: my-nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-nginx
+  template:
+    metadata:
+      labels:
+        app: my-nginx
+    spec:
+      containers:
+      - name: my-nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            memory: "128Mi" #128 MB
+            cpu: "200m" #200 millicpu (.2 cpu or 20% of the cpu)
+        readinessProbe:
+          httpGet:
+            path: /index.html
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          failureThreshold: 1
+        livenessProbe:
+          httpGet:
+            path: /index.html
+            port: 80
+          initialDelaySeconds: 15
+          timeoutSeconds: 2
+          periodSeconds: 5
+          failureThreshold: 1
+```
+
+
 ## Services
 
 Port forwarding
