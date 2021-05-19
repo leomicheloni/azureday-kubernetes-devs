@@ -70,7 +70,7 @@ kubectl describe pod my-nginx
 ```
 
 ``` powershell
-kubectl delete [podname]
+kubectl delete pod my-nginx
 ```
 
 ``` powershell
@@ -136,7 +136,7 @@ kubectl get pods --watch
 ```
 
 ``` powershell
-kubectl exec pod -it -- sh
+kubectl exec my-nginx -it -- sh
 ´´´
 
 ´´´ sh
