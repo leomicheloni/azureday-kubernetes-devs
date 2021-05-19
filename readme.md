@@ -10,6 +10,11 @@
    - [Clusterip](#escalado)
    - [Nodeport](#update)
    - [LoadBalancer](#loadbalancer)
+ - [Storage](#storage)
+   - [Persistent Volume](#persistent-volume)
+   - [Persistent volume claim](#persistent-volume-claim)
+   - [ConfigMap](#configmap)
+   - [Secrets](#secrets)
 
 
 ## Primeros comandos
@@ -212,6 +217,14 @@ kubectl delete deployment my-nginx
 
 #### Update
 
+``` powershell 
+kubectl apply -f .\nginx.deployment.yml
+```
+
+``` powershell
+kubectl get pods --watch
+```
+
 ``` yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -253,6 +266,10 @@ spec:
           timeoutSeconds: 2
           periodSeconds: 5
           failureThreshold: 1
+```
+
+``` powershell 
+kubectl apply -f .\nginx.deployment.yml
 ```
 
 
@@ -350,10 +367,19 @@ spec:
   #   targetPort: 443
   ```
 
+``` powershell 
+kubectl apply -f .\nginx.loadbalancer.yml
+```
+
+``` powershell
+kubectl get all -o wide
+```
+
 
 ## Storage
 
-#### persisten volume
+#### persistent volume
+
 ``` yml
 apiVersion: v1
 kind: PersistentVolume
@@ -372,6 +398,14 @@ spec:
     type: DirectoryOrCreate #por defecto es Directory, en caso del directorio no existir daría error
 ```
 
+``` powershell
+kubectl apply -f .\pv.yml
+```
+
+``` powershell
+kubectl get pv
+```
+
 #### Persistent volume claim
 
 ``` yml
@@ -387,6 +421,19 @@ spec:
     requests:
       storage: 1Gi
 ```
+
+``` powershell
+kubectl apply -f .\pvc.yml
+```
+
+``` powershell
+kubectl get pvc -o wide
+```
+
+``` powershell
+kubectl get pv -o wide
+```
+
 
 ``` yml
 apiVersion: apps/v1
@@ -418,14 +465,6 @@ spec:
         persistentVolumeClaim:
           claimName: task-pv-claim
 ```
-
-
-
-### Tipos de storage
-
-### Volúmenes
-
-Son similares a los volúmenes de Docker pero con más opciones.
 
 ## configmap
 
